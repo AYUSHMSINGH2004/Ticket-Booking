@@ -1,0 +1,110 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String     @id @default(uuid())
+  email        String     @unique
+  name         String?
+  passwordHash String
+  role         String     @default("CUSTOMER") // "ADMIN", "ORGANISER", "CUSTOMER"
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  bookings     Booking[]
+  waitlists    Waitlist[]
+  venues       Venue[]    @relation("AdminVenues")
+  events       Event[]    @relation("OrganiserEvents")
+}
+
+model Venue {
+  id        String   @id @default(uuid())
+  name      String
+  location  String
+  capacity  Int
+  adminId   String
+  admin     User     @relation("AdminVenues", fields: [adminId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  events    Event[]
+}
+
+model Event {
+  id          String       @id @default(uuid())
+  name        String
+  description String?
+  date        DateTime
+  venueId     String
+  venue       Venue        @relation(fields: [venueId], references: [id])
+  organiserId String
+  organiser   User         @relation("OrganiserEvents", fields: [organiserId], references: [id])
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  seats       EventSeat[]
+  bookings    Booking[]
+  waitlists   Waitlist[]
+  pricing     EventCategoryPrice[]
+}
+
+model EventCategoryPrice {
+  id        String   @id @default(uuid())
+  eventId   String
+  event     Event    @relation(fields: [eventId], references: [id])
+  category  String   // e.g. "PREMIUM", "STANDARD"
+  price     Float
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([eventId, category])
+}
+
+model EventSeat {
+  id              String      @id @default(uuid())
+  eventId         String
+  event           Event       @relation(fields: [eventId], references: [id])
+  row             String
+  col             Int
+  category        String      // e.g. "PREMIUM", "STANDARD"
+  status          String      @default("AVAILABLE") // "AVAILABLE", "HELD", "BOOKED"
+  heldByUserId    String?
+  heldUntil       DateTime?
+  bookingId       String?
+  booking         Booking?    @relation(fields: [bookingId], references: [id])
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  @@unique([eventId, row, col])
+}
+
+model Booking {
+  id          String      @id @default(uuid())
+  customerId  String
+  customer    User        @relation(fields: [customerId], references: [id])
+  eventId     String
+  event       Event       @relation(fields: [eventId], references: [id])
+  totalAmount Float
+  status      String      @default("CONFIRMED") // "CONFIRMED", "CANCELLED"
+  qrCodeUrl   String?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  seats       EventSeat[]
+}
+
+model Waitlist {
+  id             String         @id @default(uuid())
+  eventId        String
+  event          Event          @relation(fields: [eventId], references: [id])
+  category       String
+  customerId     String
+  customer       User           @relation(fields: [customerId], references: [id])
+  status         String         @default("WAITING") // "WAITING", "OFFERED", "EXPIRED", "FULFILLED"
+  joinedAt       DateTime       @default(now())
+  offeredAt      DateTime?
+  offerExpiresAt DateTime?
+
+  @@unique([eventId, category, customerId])
+}
